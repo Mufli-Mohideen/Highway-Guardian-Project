@@ -10,7 +10,7 @@ const App = () => {
     const timer = setTimeout(() => {
       setIsLoading(false);
       navigate('/login');
-    }, 7000);
+    }, 8000);
 
     return () => clearTimeout(timer);
   }, [navigate]);

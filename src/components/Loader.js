@@ -15,7 +15,7 @@ const Loader = () => {
             
             <img src="/assets/images/Loader_Image.gif" alt="Loading..." className={styles.loader} />
             
-            <div className={styles.footer}>2024 © Highway Guardian Team</div>
+            <div className={styles.footer}>2024 © Highway Guardian Team All Rights Reserved</div>
         </div>
     );
 };

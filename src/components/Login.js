@@ -1,54 +1,70 @@
-import React, { useState } from "react";
-import styles from "./Login.module.css"; // Import the styles
+import React, { useState } from 'react';
+import styles from './Login.module.css';
+import { FaEye, FaEyeSlash } from 'react-icons/fa'; // Import Font Awesome icons
 
 const Login = () => {
-  const [email, setEmail] = useState("");
-  const [password, setPassword] = useState("");
-  const [rememberMe, setRememberMe] = useState(false);
+  const [showPassword, setShowPassword] = useState(false);
+  const [email, setEmail] = useState('');
+  const [password, setPassword] = useState('');
 
-  const handleSubmit = (e) => {
-    e.preventDefault();
-    // Handle login logic here, e.g., validate email and password
-    console.log("Login attempt", { email, password, rememberMe });
+  const togglePasswordVisibility = () => {
+    setShowPassword((prevState) => !prevState);
+  };
+
+  const handleClear = () => {
+    setEmail('');
+    setPassword('');
   };
 
   return (
     <div className={styles.container}>
-      <div className={styles.formContainer}>
-        <h2>Login</h2>
-        <form onSubmit={handleSubmit} className={styles.form}>
-          <label htmlFor="email">Email</label>
-          <input
-            type="email"
-            id="email"
-            className={styles.input}
-            value={email}
-            onChange={(e) => setEmail(e.target.value)}
-            placeholder="Enter your email"
-          />
-          <label htmlFor="password">Password</label>
-          <input
-            type="password"
-            id="password"
-            className={styles.input}
-            value={password}
-            onChange={(e) => setPassword(e.target.value)}
-            placeholder="Enter your password"
-          />
-          <div className={styles.checkboxContainer}>
-            <input
-              type="checkbox"
-              id="rememberMe"
-              checked={rememberMe}
-              onChange={() => setRememberMe(!rememberMe)}
-            />
-            <label htmlFor="rememberMe">Remember me</label>
+      <div className={styles.leftContainer}></div>
+      <div className={styles.rightContainer}>
+        <div className={styles.rightBox}>
+          <div className={styles.textBox}>
+            <h1 className={styles.h1}>Login</h1>
+            <h2 className={styles.h2}>Nice to see you again!</h2>
           </div>
-          <button type="submit" className={styles.button}>Sign In</button>
-        </form>
-        <p className={styles.footerText}>
-          Don't have an account? <strong>Sign Up</strong>
-        </p>
+          <div className={styles.inputContainer}>
+            <input
+              type="text"
+              className={styles.input}
+              name="email"
+              value={email}
+              onChange={(e) => setEmail(e.target.value)}
+              placeholder="User ID"
+            />
+            <div className={styles.passwordContainer}>
+              <input
+                type={showPassword ? 'text' : 'password'}
+                className={styles.input}
+                name="password"
+                value={password}
+                onChange={(e) => setPassword(e.target.value)}
+                placeholder="Password"
+              />
+              <button
+                type="button"
+                onClick={togglePasswordVisibility}
+                className={styles.eyeButton}
+                aria-label="Toggle password visibility"
+              >
+                {showPassword ? <FaEyeSlash /> : <FaEye />}
+              </button>
+            </div>
+          </div>
+          <div className={styles.toggleContainer}>
+            <input type="checkbox" className={styles.toggleBox} name="checkbox" />
+            <label htmlFor="checkbox">Remember me</label>
+          </div>
+          <button className={styles.btn}>SIGN IN</button>
+          <button type="button" onClick={handleClear} className={styles.clearBtn}>
+            CLEAR
+          </button>
+        </div>
+        <footer className={styles.footer}>
+          <p>2024 © Highway Guardian Team All Rights Reserved</p>
+        </footer>
       </div>
     </div>
   );
