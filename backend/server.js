@@ -2,6 +2,7 @@ const express = require('express');
 const cors = require('cors');
 const dotenv = require('dotenv');
 const adminRoutes = require('./routes/adminRoutes');
+const tolloperatorRoutes = require('./routes/tollOperatorRoutes');
 
 dotenv.config();
 
@@ -14,6 +15,7 @@ app.use(cors());
 
 
 app.use('/admin', adminRoutes);
+app.use('/tolloperator',tolloperatorRoutes);
 
 
 app.listen(PORT, () => {

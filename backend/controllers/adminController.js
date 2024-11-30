@@ -4,6 +4,8 @@ const axios = require('axios');
 const dotenv = require('dotenv');
 const db = require('../db');
 const jwt = require('jsonwebtoken');
+const nodemailer = require('nodemailer');
+const crypto = require('crypto');
 
 
 dotenv.config();
@@ -95,8 +97,104 @@ const addTollBooth = async (req, res) => {
   }
 };
 
+const getTollBooths = async (req, res) => {
+  try {
+    const query = 'SELECT * FROM tollbooths';
+    const [rows] = await db.execute(query);
+    res.status(200).json(rows);
+  } catch (error) {
+    console.error('Error fetching toll booths:', error);
+    res.status(500).json({ message: 'Internal server error' });
+  }
+};
+
+const getTollOperators = async (req, res) => {
+  try {
+    const query = 'SELECT * FROM tolloperators';
+    const [rows] = await db.execute(query);
+    res.status(200).json(rows);
+  } catch (error) {
+    console.error('Error fetching toll operators:', error);
+    res.status(500).json({ message: 'Internal server error' });
+  }
+};
+
+const generatePassword = (length = 6) => {
+  const charset = 'abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789';
+  let password = '';
+  for (let i = 0; i < length; i++) {
+    const randomIndex = crypto.randomInt(0, charset.length);
+    password += charset[randomIndex];
+  }
+  return password;
+};
+
+
+const addTollOperator = async (req, res) => {
+  const { fullName, email, tollBoothId } = req.body;
+
+  if (!fullName || !email || !tollBoothId) {
+    return res.status(400).json({ message: 'All fields are required' });
+  }
+
+  const userId = crypto.randomBytes(2).toString('hex').toUpperCase();
+  const defaultPassword = generatePassword();
+
+
+  const salt = bcrypt.genSaltSync(10);
+  const pepper = process.env.PEPPER || '';
+  const hashedPassword = bcrypt.hashSync(defaultPassword + pepper, salt);
+
+  const query = 'INSERT INTO tolloperators (full_name, user_id, password_hash, email, toll_booth_id, is_password_updated, status, created_at,salt) VALUES (?, ?, ?, ?, ?, ?, ?, NOW(), ?)';
+  
+  try {
+    const [result] = await db.execute(query, [
+      fullName,
+      userId,
+      hashedPassword,
+      email,
+      tollBoothId,
+      0,
+      'Active',
+      salt
+    ]);
+
+    const transporter = nodemailer.createTransport({
+      service: 'gmail',
+      auth: {
+        user: process.env.EMAIL_USER, 
+        pass: process.env.EMAIL_PASS, 
+      },
+    });
+    
+
+    const mailOptions = {
+      from: 'support@highwayguardian.com', 
+      to: email,                         
+      subject: 'Toll Operator Credentials',
+      text: `Welcome, ${fullName}!\n\nYour account has been created successfully.\n\nYour User ID: ${userId}\nYour Password: ${defaultPassword}\n\nBest Regards,\nHighwayGuardian Team`,
+    };
+    
+    transporter.sendMail(mailOptions, (error, info) => {
+      if (error) {
+        console.error('Error sending email:', error);
+      } else {
+        console.log('Email sent: ' + info.response);
+      }
+    });
+
+    res.status(201).json({ message: 'Toll operator added successfully', id: result.insertId });
+  } catch (error) {
+    console.error('Error adding toll operator:', error);
+    res.status(500).json({ message: 'Internal server error' });
+  }
+};
+
 
 module.exports = {
   loginAdmin,
   addTollBooth,
+  getTollBooths,
+  addTollOperator,
+  getTollOperators
 };
