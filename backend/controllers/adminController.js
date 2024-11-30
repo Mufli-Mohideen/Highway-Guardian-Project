@@ -75,6 +75,28 @@ const loginAdmin = async (req, res) => {
   }
 };
 
+const addTollBooth = async (req, res) => {
+  const { locationName } = req.body;
+
+  if (!locationName) {
+    return res.status(400).json({ message: 'Location name is required' });
+  }
+
+  try {
+    const query = 'INSERT INTO tollbooths (location_name, created_at) VALUES (?, NOW())';
+    const result = await db.execute(query, [locationName]);
+
+    console.log('New toll booth added with ID:', result.insertId);
+
+    return res.status(201).json({ message: 'Toll booth added successfully', id: result.insertId });
+  } catch (error) {
+    console.error('Error adding toll booth:', error);
+    return res.status(500).json({ message: 'Internal server error' });
+  }
+};
+
+
 module.exports = {
   loginAdmin,
+  addTollBooth,
 };
