@@ -1,9 +1,11 @@
-const { getTollOperatorByUserId } = require('../models/tollOperatorModel');
+const { getTollOperatorByUserId, getTollOperatorDetailsById } = require('../models/tollOperatorModel');
 const bcrypt = require('bcryptjs');
 const jwt = require('jsonwebtoken');
 const axios = require('axios');
 const dotenv = require('dotenv');
 const db = require('../db');
+const nodemailer = require('nodemailer');
+
 
 dotenv.config();
 
@@ -27,61 +29,82 @@ const verifyTurnstile = async (token) => {
   }
 };
 
+
+
+const sendEmail = async (to, subject, text) => {
+  try {
+    const transporter = nodemailer.createTransport({
+      service: 'Gmail', // Or your email provider
+      auth: {
+        user: process.env.EMAIL_USER, // Your email
+        pass: process.env.EMAIL_PASS, // Your email password
+      },
+    });
+
+    const mailOptions = {
+      from: 'support@highwayguardian.com',
+      to,
+      subject,
+      text,
+    };
+
+    await transporter.sendMail(mailOptions);
+    console.log(`Email sent to ${to}`);
+  } catch (error) {
+    console.error('Error sending email:', error);
+  }
+};
+
+
+
 const loginTollOperator = async (req, res) => {
-    const { user_id, password, turnstileToken } = req.body;
-  
-    if (!turnstileToken) {
-      return res.status(400).json({ message: 'Turnstile token is required' });
+  const { user_id, password, turnstileToken } = req.body;
+
+  if (!turnstileToken) {
+    return res.status(400).json({ message: 'Turnstile token is required' });
+  }
+
+  const isTurnstileValid = await verifyTurnstile(turnstileToken);
+  if (!isTurnstileValid) {
+    return res.status(400).json({ message: 'Turnstile verification failed' });
+  }
+
+  try {
+    const operator = await getTollOperatorDetailsById(user_id);
+
+    if (!operator) {
+      return res.status(401).json({ message: 'User not found' });
     }
-  
-    console.log('Verifying Turnstile with token:', turnstileToken);
-  
-    const isTurnstileValid = await verifyTurnstile(turnstileToken);
-    if (!isTurnstileValid) {
-      console.error('Turnstile verification failed');
-      return res.status(400).json({ message: 'Turnstile verification failed' });
+
+    const { password_hash: hashedPassword, email, full_name } = operator;
+    const pepper = process.env.PEPPER || '';
+    const pepperedPassword = password + pepper;
+
+    const isPasswordCorrect = bcrypt.compareSync(pepperedPassword, hashedPassword);
+    if (!isPasswordCorrect) {
+      return res.status(401).json({ message: 'Invalid credentials' });
     }
-  
-    console.log('Turnstile verification successful');
-  
-    try {
-      console.log('Fetching user with User ID:', user_id);
-  
-      const operator = await getTollOperatorByUserId(user_id);
-  
-      if (!operator) {
-        console.error('User not found for User ID:', user_id);
-        return res.status(401).json({ message: 'User not found' });
-      }
-  
-      const { password_hash: hashedPassword } = operator;
-      const pepper = process.env.PEPPER || '';
-      const pepperedPassword = password + pepper;
-  
-      console.log('Comparing passwords...');
-  
-      const isPasswordCorrect = bcrypt.compareSync(pepperedPassword, hashedPassword);
-  
-      if (!isPasswordCorrect) {
-        console.error('Incorrect password for User ID:', user_id);
-        return res.status(401).json({ message: 'Invalid credentials' });
-      }
-  
-      console.log('Password matched for User ID:', user_id);
-  
-      const token = jwt.sign({ id: operator.id }, process.env.JWT_SECRET, { expiresIn: '1h' });
-  
-      const queryUpdate = 'UPDATE tolloperators SET last_login = NOW() WHERE user_id = ?';
-      console.log('Updating last login for User ID:', user_id);
-      await db.execute(queryUpdate, [user_id]);
-  
-      console.log('Login successful for User ID:', user_id);
-      return res.status(200).json({ message: 'Login successful', token });
-    } catch (error) {
-      console.error('Error during login:', error);
-      return res.status(500).json({ message: 'Internal server error' });
-    }
-  };
+
+    const token = jwt.sign({ id: operator.id }, process.env.JWT_SECRET, { expiresIn: '1h' });
+
+    const queryUpdate = 'UPDATE tolloperators SET last_login = NOW() WHERE user_id = ?';
+    await db.execute(queryUpdate, [user_id]);
+
+    const userEmailSubject = 'Login Alert';
+    const userEmailText = `Dear ${full_name},\n\nYou have successfully logged in. If this wasn't you, please contact support@highwayguardian.com immediately.\n\nHighway Guardian Team`;
+    sendEmail(email, userEmailSubject, userEmailText);
+
+    const adminEmail = 'mufli2mail@gmail.com';
+    const adminEmailSubject = `User Login Alert: ${full_name}`;
+    const adminEmailText = `Dear Admin,\n\nUser ${full_name} has logged in at ${new Date().toLocaleString()}.\n\nHighway Guardian Team`;
+    sendEmail(adminEmail, adminEmailSubject, adminEmailText);
+
+    return res.status(200).json({ message: 'Login successful', token });
+  } catch (error) {
+    console.error('Error during login:', error);
+    return res.status(500).json({ message: 'Internal server error' });
+  }
+};
   
 
 module.exports = {
