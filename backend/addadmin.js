@@ -19,7 +19,7 @@ const generateSaltAndHash = async (password) => {
 };
 
 const addAdminUser = async () => {
-  const email = 'mufli2mail@gmail.com';
+  const email = 'muflimohideen2@gmail.com';
   const password = 'admin'; 
 
   try {

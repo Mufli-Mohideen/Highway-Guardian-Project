@@ -190,11 +190,207 @@ const addTollOperator = async (req, res) => {
   }
 };
 
+const updateTollBooth = async (req, res) => {
+  const { id } = req.params;
+  const { location_name } = req.body;
+
+  console.log('Updating toll booth:', { id, location_name });
+
+  // Validate empty location name
+  if (!location_name || !location_name.trim()) {
+    console.log('Validation failed: Empty location name');
+    return res.status(400).json({ 
+      message: 'Location name cannot be empty',
+      field: 'location_name'
+    });
+  }
+
+  try {
+    // Check if the toll booth exists first
+    const [existingBooth] = await db.execute('SELECT id FROM tollbooths WHERE id = ?', [id]);
+    
+    if (existingBooth.length === 0) {
+      console.log('Toll booth not found:', id);
+      return res.status(404).json({ message: 'Toll booth not found' });
+    }
+
+    // Check if another toll booth with the same name exists (excluding current booth)
+    const checkQuery = 'SELECT id FROM tollbooths WHERE location_name = ? AND id != ?';
+    const [existing] = await db.execute(checkQuery, [location_name.trim(), id]);
+
+    if (existing.length > 0) {
+      console.log('Duplicate location name found');
+      return res.status(400).json({ 
+        message: 'A toll booth with this location name already exists',
+        field: 'location_name'
+      });
+    }
+
+    // Update the toll booth
+    const updateQuery = 'UPDATE tollbooths SET location_name = ? WHERE id = ?';
+    const [result] = await db.execute(updateQuery, [location_name.trim(), id]);
+
+    if (result.affectedRows === 0) {
+      console.log('Update failed: No rows affected');
+      return res.status(404).json({ message: 'Failed to update toll booth' });
+    }
+
+    // Fetch the updated toll booth
+    const [updated] = await db.execute('SELECT * FROM tollbooths WHERE id = ?', [id]);
+    console.log('Update successful:', updated[0]);
+    
+    res.status(200).json(updated[0]);
+  } catch (error) {
+    console.error('Database error while updating toll booth:', error);
+    res.status(500).json({ message: 'Internal server error' });
+  }
+};
+
+const deleteTollBooth = async (req, res) => {
+  const { id } = req.params;
+
+  console.log('Attempting to delete toll booth:', id);
+
+  try {
+    // First check if the toll booth exists
+    const [existingBooth] = await db.execute('SELECT id FROM tollbooths WHERE id = ?', [id]);
+    
+    if (existingBooth.length === 0) {
+      console.log('Toll booth not found:', id);
+      return res.status(404).json({ message: 'Toll booth not found' });
+    }
+
+    // Check if there are any operators assigned to this toll booth
+    const [operators] = await db.execute('SELECT id FROM tolloperators WHERE toll_booth_id = ?', [id]);
+    
+    if (operators.length > 0) {
+      console.log('Cannot delete: Toll booth has assigned operators');
+      return res.status(400).json({ 
+        message: 'Cannot delete toll booth that has operators assigned to it. Please reassign or delete the operators first.'
+      });
+    }
+
+    // Delete the toll booth
+    const [result] = await db.execute('DELETE FROM tollbooths WHERE id = ?', [id]);
+
+    if (result.affectedRows === 0) {
+      console.log('Delete failed: No rows affected');
+      return res.status(404).json({ message: 'Failed to delete toll booth' });
+    }
+
+    console.log('Toll booth deleted successfully:', id);
+    res.status(200).json({ message: 'Toll booth deleted successfully', id });
+  } catch (error) {
+    console.error('Database error while deleting toll booth:', error);
+    res.status(500).json({ message: 'Internal server error' });
+  }
+};
+
+const updateTollOperator = async (req, res) => {
+  const { id } = req.params;
+  const { full_name, status } = req.body;
+
+  console.log('Updating toll operator:', { id, full_name, status });
+
+  // Input validation
+  if (!full_name || !full_name.trim()) {
+    console.log('Validation failed: Empty name');
+    return res.status(400).json({ 
+      message: 'Full name cannot be empty',
+      field: 'full_name'
+    });
+  }
+
+  // Validate status
+  const validStatus = ['Active', 'Inactive'];
+  if (!validStatus.includes(status)) {
+    console.log('Validation failed: Invalid status');
+    return res.status(400).json({ 
+      message: 'Status must be either Active or Inactive',
+      field: 'status'
+    });
+  }
+
+  try {
+    // Check if the toll operator exists and get current data
+    const [existingOperator] = await db.execute(
+      'SELECT id, full_name, email, status, user_id FROM tolloperators WHERE id = ?', 
+      [id]
+    );
+    
+    if (existingOperator.length === 0) {
+      console.log('Toll operator not found:', id);
+      return res.status(404).json({ message: 'Toll operator not found' });
+    }
+
+    const currentOperator = existingOperator[0];
+
+    // Update the toll operator
+    const updateQuery = 'UPDATE tolloperators SET full_name = ?, status = ? WHERE id = ?';
+    const [result] = await db.execute(updateQuery, [
+      full_name.trim(), 
+      status, // Keep original case
+      id
+    ]);
+
+    if (result.affectedRows === 0) {
+      console.log('Update failed: No rows affected');
+      return res.status(404).json({ message: 'Failed to update toll operator' });
+    }
+
+    // Return the updated operator data
+    const updatedOperator = {
+      ...currentOperator,
+      full_name: full_name.trim(),
+      status: status
+    };
+
+    console.log('Toll operator updated successfully:', updatedOperator);
+    res.status(200).json(updatedOperator);
+  } catch (error) {
+    console.error('Database error while updating toll operator:', error);
+    res.status(500).json({ message: 'Internal server error' });
+  }
+};
+
+const deleteTollOperator = async (req, res) => {
+  const { id } = req.params;
+
+  console.log('Attempting to delete toll operator:', id);
+
+  try {
+    // First check if the toll operator exists
+    const [existingOperator] = await db.execute('SELECT id FROM tolloperators WHERE id = ?', [id]);
+    
+    if (existingOperator.length === 0) {
+      console.log('Toll operator not found:', id);
+      return res.status(404).json({ message: 'Toll operator not found' });
+    }
+
+    // Delete the toll operator
+    const [result] = await db.execute('DELETE FROM tolloperators WHERE id = ?', [id]);
+
+    if (result.affectedRows === 0) {
+      console.log('Delete failed: No rows affected');
+      return res.status(404).json({ message: 'Failed to delete toll operator' });
+    }
+
+    console.log('Toll operator deleted successfully:', id);
+    res.status(200).json({ message: 'Toll operator deleted successfully', id });
+  } catch (error) {
+    console.error('Database error while deleting toll operator:', error);
+    res.status(500).json({ message: 'Internal server error' });
+  }
+};
 
 module.exports = {
   loginAdmin,
   addTollBooth,
   getTollBooths,
   addTollOperator,
-  getTollOperators
+  getTollOperators,
+  updateTollBooth,
+  deleteTollBooth,
+  updateTollOperator,
+  deleteTollOperator
 };
