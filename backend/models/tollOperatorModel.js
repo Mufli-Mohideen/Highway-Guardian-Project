@@ -26,13 +26,18 @@ const getTollOperatorByUserId = async (user_id) => {
 
 const getTollOperatorDetailsById = async (userId) => {
     try {
-      const query = 'SELECT * FROM tolloperators WHERE user_id = ?';
+      console.log('Fetching toll operator details for User ID:', userId);
+      const query = 'SELECT id, user_id, password_hash, email, full_name, salt, is_password_updated, status, last_login FROM tolloperators WHERE user_id = ?';
       const [rows] = await db.execute(query, [userId]);
+      console.log('Toll operator details:', rows[0]);
       return rows[0];
     } catch (error) {
       console.error('Error fetching toll operator details:', error);
       throw error;
     }
-  };
+};
 
-module.exports = { getTollOperatorByUserId, getTollOperatorDetailsById };
+module.exports = {
+    getTollOperatorByUserId,
+    getTollOperatorDetailsById
+};

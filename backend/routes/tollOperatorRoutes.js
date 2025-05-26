@@ -1,5 +1,5 @@
 const express = require('express');
-const { loginTollOperator } = require('../controllers/tollOperatorController');
+const { loginTollOperator, updateFirstTimeLogin, getTollOperatorDetails, sendInactiveUserRequest } = require('../controllers/tollOperatorController');
 const { verifyToken } = require('../middleware/authMiddleware');
 const router = express.Router();
 
@@ -10,5 +10,10 @@ router.post('/login', (req, res, next) => {
   next();
 }, loginTollOperator);
 
+router.put('/update-first-login', updateFirstTimeLogin);
+
+router.get('/details/:userId', verifyToken, getTollOperatorDetails);
+
+router.post('/request-access', sendInactiveUserRequest);
 
 module.exports = router;

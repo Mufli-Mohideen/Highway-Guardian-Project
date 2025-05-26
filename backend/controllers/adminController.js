@@ -80,13 +80,27 @@ const loginAdmin = async (req, res) => {
 const addTollBooth = async (req, res) => {
   const { locationName } = req.body;
 
-  if (!locationName) {
-    return res.status(400).json({ message: 'Location name is required' });
+  if (!locationName || !locationName.trim()) {
+    return res.status(400).json({ 
+      message: 'Location name is required',
+      field: 'locationName'
+    });
   }
 
   try {
+    // Check if a toll booth with the same name already exists
+    const [existing] = await db.execute('SELECT id FROM tollbooths WHERE location_name = ?', [locationName.trim()]);
+
+    if (existing.length > 0) {
+      console.log('Duplicate toll booth name found:', locationName);
+      return res.status(400).json({ 
+        message: 'A toll booth with this location name already exists',
+        field: 'locationName'
+      });
+    }
+
     const query = 'INSERT INTO tollbooths (location_name, created_at) VALUES (?, NOW())';
-    const result = await db.execute(query, [locationName]);
+    const result = await db.execute(query, [locationName.trim()]);
 
     console.log('New toll booth added with ID:', result.insertId);
 
@@ -137,17 +151,27 @@ const addTollOperator = async (req, res) => {
     return res.status(400).json({ message: 'All fields are required' });
   }
 
-  const userId = crypto.randomBytes(2).toString('hex').toUpperCase();
-  const defaultPassword = generatePassword();
-
-
-  const salt = bcrypt.genSaltSync(10);
-  const pepper = process.env.PEPPER || '';
-  const hashedPassword = bcrypt.hashSync(defaultPassword + pepper, salt);
-
-  const query = 'INSERT INTO tolloperators (full_name, user_id, password_hash, email, toll_booth_id, is_password_updated, status, created_at,salt) VALUES (?, ?, ?, ?, ?, ?, ?, NOW(), ?)';
-  
   try {
+    // Check if operator with same email already exists
+    const [existingOperator] = await db.execute('SELECT id FROM tolloperators WHERE email = ?', [email.trim()]);
+
+    if (existingOperator.length > 0) {
+      console.log('Duplicate email found:', email);
+      return res.status(400).json({ 
+        message: 'An operator with this email already exists',
+        field: 'email'
+      });
+    }
+
+    const userId = crypto.randomBytes(2).toString('hex').toUpperCase();
+    const defaultPassword = generatePassword();
+
+    const salt = bcrypt.genSaltSync(10);
+    const pepper = process.env.PEPPER || '';
+    const hashedPassword = bcrypt.hashSync(defaultPassword + pepper, salt);
+
+    const query = 'INSERT INTO tolloperators (full_name, user_id, password_hash, email, toll_booth_id, is_password_updated, status, created_at, salt) VALUES (?, ?, ?, ?, ?, ?, ?, NOW(), ?)';
+  
     const [result] = await db.execute(query, [
       fullName,
       userId,
@@ -159,6 +183,8 @@ const addTollOperator = async (req, res) => {
       salt
     ]);
 
+    const loginUrl = `${process.env.FRONTEND_URL || 'http://localhost:3000'}/login`;
+
     const transporter = nodemailer.createTransport({
       service: 'gmail',
       auth: {
@@ -167,12 +193,51 @@ const addTollOperator = async (req, res) => {
       },
     });
     
-
     const mailOptions = {
       from: 'support@highwayguardian.com', 
       to: email,                         
-      subject: 'Toll Operator Credentials',
-      text: `Welcome, ${fullName}!\n\nYour account has been created successfully.\n\nYour User ID: ${userId}\nYour Password: ${defaultPassword}\n\nBest Regards,\nHighwayGuardian Team`,
+      subject: 'Welcome to Highway Guardian - Your Toll Operator Account',
+      html: `
+        <div style="font-family: Arial, sans-serif; max-width: 600px; margin: 0 auto;">
+          <h2 style="color: #2c3e50;">Welcome to Highway Guardian!</h2>
+          
+          <p>Dear ${fullName},</p>
+          
+          <p>Your toll operator account has been created successfully. Here are your login credentials:</p>
+          
+          <div style="background-color: #f8f9fa; padding: 15px; border-radius: 5px; margin: 20px 0;">
+            <p style="margin: 5px 0;"><strong>User ID:</strong> ${userId}</p>
+            <p style="margin: 5px 0;"><strong>Password:</strong> ${defaultPassword}</p>
+          </div>
+          
+          <div style="text-align: center; margin: 30px 0;">
+            <a href="${loginUrl}" 
+               style="background-color: #3498db; 
+                      color: white; 
+                      padding: 12px 30px; 
+                      text-decoration: none; 
+                      border-radius: 5px; 
+                      font-weight: bold;
+                      display: inline-block;">
+              Login to Your Account
+            </a>
+          </div>
+          
+          <p style="color: #e74c3c; font-weight: bold;">Important Security Notes:</p>
+          <ul style="color: #7f8c8d;">
+            <li>Please change your password after your first login</li>
+            <li>Keep your credentials secure and do not share them with anyone</li>
+            <li>Make sure to use a strong password when you change it</li>
+          </ul>
+          
+          <hr style="border: 1px solid #eee; margin: 20px 0;">
+          
+          <p style="color: #7f8c8d; font-size: 0.8em;">
+            This is an automated message. Please do not reply to this email.<br>
+            If you need assistance, please contact your administrator.
+          </p>
+        </div>
+      `
     };
     
     transporter.sendMail(mailOptions, (error, info) => {
@@ -329,7 +394,7 @@ const updateTollOperator = async (req, res) => {
     const updateQuery = 'UPDATE tolloperators SET full_name = ?, status = ? WHERE id = ?';
     const [result] = await db.execute(updateQuery, [
       full_name.trim(), 
-      status, // Keep original case
+      status,
       id
     ]);
 
