@@ -246,9 +246,130 @@ Highway Guardian Team`;
   }
 };
 
+const getMonthlyTarget = async (req, res) => {
+  try {
+    // Get the current month and year
+    const now = new Date();
+    const currentMonth = now.getMonth() + 1;
+    const currentYear = now.getFullYear();
+
+    // Get the toll booth ID for the logged-in operator
+    const [operator] = await db.execute(
+      'SELECT toll_booth_id FROM tolloperators WHERE id = ?',
+      [req.operatorId]
+    );
+
+    if (!operator || operator.length === 0) {
+      return res.status(404).json({ message: 'Operator not found' });
+    }
+
+    const tollBoothId = operator[0].toll_booth_id;
+
+    // Get the current month's target
+    const [currentTarget] = await db.execute(
+      'SELECT * FROM monthlytargets WHERE toll_booth_id = ? AND month = ? AND year = ?',
+      [tollBoothId, currentMonth, currentYear]
+    );
+
+    // Get the total amount collected this month
+    const [currentAmount] = await db.execute(
+      'SELECT COALESCE(SUM(amount), 0) as total FROM transactions WHERE toll_booth_id = ? AND MONTH(timestamp) = ? AND YEAR(timestamp) = ?',
+      [tollBoothId, currentMonth, currentYear]
+    );
+
+    // Get historical data for the past 6 months
+    const [history] = await db.execute(`
+      SELECT 
+        mt.month,
+        mt.year,
+        mt.target_amount,
+        COALESCE(SUM(t.amount), 0) as achieved_amount
+      FROM monthlytargets mt
+      LEFT JOIN transactions t ON 
+        mt.toll_booth_id = t.toll_booth_id AND 
+        MONTH(t.timestamp) = mt.month AND 
+        YEAR(t.timestamp) = mt.year
+      WHERE mt.toll_booth_id = ? AND
+        (mt.year < ? OR (mt.year = ? AND mt.month <= ?))
+      GROUP BY mt.month, mt.year
+      ORDER BY mt.year DESC, mt.month DESC
+      LIMIT 6
+    `, [tollBoothId, currentYear, currentYear, currentMonth]);
+
+    const target = currentTarget[0] || { target_amount: 0 };
+    const current = currentAmount[0].total || 0;
+    const progress = target.target_amount > 0 ? (current / target.target_amount) * 100 : 0;
+
+    res.status(200).json({
+      target_amount: target.target_amount,
+      current_amount: current,
+      progress: Math.round(progress),
+      history: history
+    });
+  } catch (error) {
+    console.error('Error fetching monthly target:', error);
+    res.status(500).json({ message: 'Internal server error' });
+  }
+};
+
+const getTodaysProfit = async (req, res) => {
+  try {
+    const { userId } = req.params;
+    console.log('1. Getting profit for userId:', userId);
+    
+    // First get the operator's toll booth ID
+    const [operator] = await db.execute(
+      'SELECT toll_booth_id FROM tolloperators WHERE user_id = ?',
+      [userId]
+    );
+    console.log('2. Database response for operator:', operator);
+
+    if (!operator || operator.length === 0) {
+      console.log('3. No operator found for userId:', userId);
+      return res.status(404).json({ message: 'Operator not found' });
+    }
+
+    const tollBoothId = operator[0].toll_booth_id;
+    console.log('4. Found toll_booth_id:', tollBoothId);
+
+    // Get today's profit with explicit date format
+    const query = `
+      SELECT profit_amount
+      FROM dailyprofits 
+      WHERE toll_booth_id = ? 
+      AND date = '2025-05-29'
+      LIMIT 1
+    `;
+    console.log('5. Executing query:', query, 'with tollBoothId:', tollBoothId);
+    
+    const [result] = await db.execute(query, [tollBoothId]);
+    console.log('6. Profit query result:', result);
+    
+    // Check if we got any results
+    if (!result || result.length === 0) {
+      console.log('7. No profit record found for today');
+      return res.status(200).json({ today_profit: 0 });
+    }
+    
+    console.log('8. Sending profit amount:', result[0].profit_amount);
+    res.status(200).json({
+      today_profit: parseFloat(result[0].profit_amount) || 0
+    });
+  } catch (error) {
+    console.error('Detailed error in getTodaysProfit:', {
+      error: error.message,
+      stack: error.stack,
+      userId: req.params.userId
+    });
+    res.status(500).json({ message: 'Internal server error' });
+  }
+};
+
 module.exports = {
   loginTollOperator,
   updateFirstTimeLogin,
   getTollOperatorDetails,
-  sendInactiveUserRequest
+  sendInactiveUserRequest,
+  getMonthlyTarget,
+  getTodaysProfit
 };

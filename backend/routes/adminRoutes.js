@@ -1,5 +1,5 @@
 const express = require('express');
-const { loginAdmin, addTollBooth, getTollBooths, addTollOperator, getTollOperators, updateTollBooth, deleteTollBooth, updateTollOperator, deleteTollOperator } = require('../controllers/adminController');
+const { loginAdmin, addTollBooth, getTollBooths, addTollOperator, getTollOperators, updateTollBooth, deleteTollBooth, updateTollOperator, deleteTollOperator, addMonthlyTarget, getMonthlyTargets, updateMonthlyTarget, deleteMonthlyTarget, getMonthlyRevenue, getTollBoothPerformance, getTargetAchievement } = require('../controllers/adminController');
 const { verifyToken } = require('../middleware/authMiddleware');
 const router = express.Router();
 
@@ -62,5 +62,16 @@ router.delete('/delete-toll-operator/:id', (req, res, next) => {
   });
   next();
 }, verifyToken, deleteTollOperator);
+
+// Monthly Profit Target routes
+router.post('/add-monthly-target', verifyToken, addMonthlyTarget);
+router.get('/get-monthly-targets', verifyToken, getMonthlyTargets);
+router.put('/update-monthly-target/:id', verifyToken, updateMonthlyTarget);
+router.delete('/delete-monthly-target/:id', verifyToken, deleteMonthlyTarget);
+
+// Financial insights routes
+router.get('/monthly-revenue', verifyToken, getMonthlyRevenue);
+router.get('/toll-booth-performance', verifyToken, getTollBoothPerformance);
+router.get('/target-achievement', verifyToken, getTargetAchievement);
 
 module.exports = router;

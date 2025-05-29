@@ -78,12 +78,34 @@ const loginAdmin = async (req, res) => {
 };
 
 const addTollBooth = async (req, res) => {
-  const { locationName } = req.body;
+  const { locationName, lon, lat } = req.body;
 
   if (!locationName || !locationName.trim()) {
     return res.status(400).json({ 
       message: 'Location name is required',
       field: 'locationName'
+    });
+  }
+
+  if (lon === undefined || lat === undefined) {
+    return res.status(400).json({
+      message: 'Both longitude and latitude are required',
+      field: 'coordinates'
+    });
+  }
+
+  // Validate coordinates
+  if (isNaN(lon) || lon < -180 || lon > 180) {
+    return res.status(400).json({
+      message: 'Invalid longitude. Must be between -180 and 180',
+      field: 'lon'
+    });
+  }
+
+  if (isNaN(lat) || lat < -90 || lat > 90) {
+    return res.status(400).json({
+      message: 'Invalid latitude. Must be between -90 and 90',
+      field: 'lat'
     });
   }
 
@@ -99,12 +121,18 @@ const addTollBooth = async (req, res) => {
       });
     }
 
-    const query = 'INSERT INTO tollbooths (location_name, created_at) VALUES (?, NOW())';
-    const result = await db.execute(query, [locationName.trim()]);
+    const query = 'INSERT INTO tollbooths (location_name, lon, lat, created_at) VALUES (?, ?, ?, NOW())';
+    const result = await db.execute(query, [locationName.trim(), lon, lat]);
 
     console.log('New toll booth added with ID:', result.insertId);
 
-    return res.status(201).json({ message: 'Toll booth added successfully', id: result.insertId });
+    return res.status(201).json({ 
+      message: 'Toll booth added successfully', 
+      id: result.insertId,
+      location_name: locationName.trim(),
+      lon,
+      lat
+    });
   } catch (error) {
     console.error('Error adding toll booth:', error);
     return res.status(500).json({ message: 'Internal server error' });
@@ -124,7 +152,11 @@ const getTollBooths = async (req, res) => {
 
 const getTollOperators = async (req, res) => {
   try {
-    const query = 'SELECT * FROM tolloperators';
+    const query = `
+      SELECT t.*, b.location_name as toll_booth_location, b.lon as toll_booth_lon, b.lat as toll_booth_lat
+      FROM tolloperators t
+      LEFT JOIN tollbooths b ON t.toll_booth_id = b.id
+    `;
     const [rows] = await db.execute(query);
     res.status(200).json(rows);
   } catch (error) {
@@ -160,6 +192,20 @@ const addTollOperator = async (req, res) => {
       return res.status(400).json({ 
         message: 'An operator with this email already exists',
         field: 'email'
+      });
+    }
+
+    // Check if toll booth already has an assigned operator
+    const [existingAssignment] = await db.execute(
+      'SELECT t.*, o.full_name FROM tolloperators o JOIN tollbooths t ON t.id = o.toll_booth_id WHERE t.id = ? AND o.status = "Active"',
+      [tollBoothId]
+    );
+
+    if (existingAssignment.length > 0) {
+      console.log('Toll booth already has an assigned operator:', tollBoothId);
+      return res.status(400).json({
+        message: `This toll booth already has an assigned operator (${existingAssignment[0].full_name})`,
+        field: 'tollBoothId'
       });
     }
 
@@ -257,9 +303,9 @@ const addTollOperator = async (req, res) => {
 
 const updateTollBooth = async (req, res) => {
   const { id } = req.params;
-  const { location_name } = req.body;
+  const { location_name, lon, lat } = req.body;
 
-  console.log('Updating toll booth:', { id, location_name });
+  console.log('Updating toll booth:', { id, location_name, lon, lat });
 
   // Validate empty location name
   if (!location_name || !location_name.trim()) {
@@ -267,6 +313,28 @@ const updateTollBooth = async (req, res) => {
     return res.status(400).json({ 
       message: 'Location name cannot be empty',
       field: 'location_name'
+    });
+  }
+
+  // Validate coordinates
+  if (lon === undefined || lat === undefined) {
+    return res.status(400).json({
+      message: 'Both longitude and latitude are required',
+      field: 'coordinates'
+    });
+  }
+
+  if (isNaN(lon) || lon < -180 || lon > 180) {
+    return res.status(400).json({
+      message: 'Invalid longitude. Must be between -180 and 180',
+      field: 'lon'
+    });
+  }
+
+  if (isNaN(lat) || lat < -90 || lat > 90) {
+    return res.status(400).json({
+      message: 'Invalid latitude. Must be between -90 and 90',
+      field: 'lat'
     });
   }
 
@@ -292,8 +360,8 @@ const updateTollBooth = async (req, res) => {
     }
 
     // Update the toll booth
-    const updateQuery = 'UPDATE tollbooths SET location_name = ? WHERE id = ?';
-    const [result] = await db.execute(updateQuery, [location_name.trim(), id]);
+    const updateQuery = 'UPDATE tollbooths SET location_name = ?, lon = ?, lat = ? WHERE id = ?';
+    const [result] = await db.execute(updateQuery, [location_name.trim(), lon, lat, id]);
 
     if (result.affectedRows === 0) {
       console.log('Update failed: No rows affected');
@@ -448,6 +516,137 @@ const deleteTollOperator = async (req, res) => {
   }
 };
 
+const addMonthlyTarget = async (req, res) => {
+  const { toll_booth_id, month, year, target_amount } = req.body;
+
+  try {
+    const query = 'INSERT INTO monthlytargets (toll_booth_id, month, year, target_amount) VALUES (?, ?, ?, ?)';
+    await db.execute(query, [toll_booth_id, month, year, target_amount]);
+    res.status(201).json({ message: 'Monthly target added successfully' });
+  } catch (error) {
+    console.error('Error adding monthly target:', error);
+    res.status(500).json({ message: 'Internal server error' });
+  }
+};
+
+const getMonthlyTargets = async (req, res) => {
+  try {
+    const query = `
+      SELECT mt.*, tb.location_name 
+      FROM monthlytargets mt 
+      JOIN tollbooths tb ON mt.toll_booth_id = tb.id
+      ORDER BY mt.year DESC, mt.month DESC`;
+    const [rows] = await db.execute(query);
+    res.status(200).json(rows);
+  } catch (error) {
+    console.error('Error fetching monthly targets:', error);
+    res.status(500).json({ message: 'Internal server error' });
+  }
+};
+
+const updateMonthlyTarget = async (req, res) => {
+  const { id } = req.params;
+  const { target_amount } = req.body;
+
+  try {
+    const query = 'UPDATE monthlytargets SET target_amount = ? WHERE id = ?';
+    await db.execute(query, [target_amount, id]);
+    res.status(200).json({ message: 'Monthly target updated successfully' });
+  } catch (error) {
+    console.error('Error updating monthly target:', error);
+    res.status(500).json({ message: 'Internal server error' });
+  }
+};
+
+const deleteMonthlyTarget = async (req, res) => {
+  const { id } = req.params;
+
+  try {
+    const query = 'DELETE FROM monthlytargets WHERE id = ?';
+    await db.execute(query, [id]);
+    res.status(200).json({ message: 'Monthly target deleted successfully' });
+  } catch (error) {
+    console.error('Error deleting monthly target:', error);
+    res.status(500).json({ message: 'Internal server error' });
+  }
+};
+
+// Get monthly revenue data
+const getMonthlyRevenue = async (req, res) => {
+  try {
+    const query = `
+      SELECT 
+        DATE_FORMAT(date, '%Y-%m') as month,
+        SUM(profit_amount) as revenue
+      FROM dailyprofits
+      WHERE date >= DATE_SUB(CURDATE(), INTERVAL 12 MONTH)
+      GROUP BY month
+      ORDER BY month ASC
+    `;
+
+    const [results] = await db.query(query);
+
+    res.json(results.map(row => ({
+      month: new Date(row.month).toLocaleString('default', { month: 'long', year: 'numeric' }),
+      revenue: parseFloat(row.revenue)
+    })));
+  } catch (error) {
+    console.error('Error fetching monthly revenue:', error);
+    res.status(500).json({ message: 'Error fetching monthly revenue data' });
+  }
+};
+
+// Get toll booth performance data
+const getTollBoothPerformance = async (req, res) => {
+  try {
+    const query = `
+      SELECT 
+        tb.location_name,
+        COALESCE(SUM(dp.profit_amount), 0) as revenue
+      FROM tollbooths tb
+      LEFT JOIN dailyprofits dp ON tb.id = dp.toll_booth_id
+      WHERE dp.date >= DATE_SUB(CURDATE(), INTERVAL 30 DAY)
+      GROUP BY tb.id, tb.location_name
+      ORDER BY revenue DESC
+    `;
+
+    const [results] = await db.query(query);
+    res.json(results);
+  } catch (error) {
+    console.error('Error fetching toll booth performance:', error);
+    res.status(500).json({ message: 'Error fetching toll booth performance data' });
+  }
+};
+
+// Get target achievement data
+const getTargetAchievement = async (req, res) => {
+  try {
+    const currentDate = new Date();
+    const currentMonth = currentDate.getMonth() + 1;
+    const currentYear = currentDate.getFullYear();
+
+    const query = `
+      SELECT 
+        tb.location_name,
+        mt.target_amount as target,
+        COALESCE(SUM(dp.profit_amount), 0) as actual
+      FROM monthlytargets mt
+      JOIN tollbooths tb ON mt.toll_booth_id = tb.id
+      LEFT JOIN dailyprofits dp ON tb.id = dp.toll_booth_id
+        AND MONTH(dp.date) = mt.month
+        AND YEAR(dp.date) = mt.year
+      WHERE mt.month = ? AND mt.year = ?
+      GROUP BY tb.id, tb.location_name, mt.target_amount
+    `;
+
+    const [results] = await db.query(query, [currentMonth, currentYear]);
+    res.json(results);
+  } catch (error) {
+    console.error('Error fetching target achievement:', error);
+    res.status(500).json({ message: 'Error fetching target achievement data' });
+  }
+};
+
 module.exports = {
   loginAdmin,
   addTollBooth,
@@ -457,5 +656,12 @@ module.exports = {
   updateTollBooth,
   deleteTollBooth,
   updateTollOperator,
-  deleteTollOperator
+  deleteTollOperator,
+  addMonthlyTarget,
+  getMonthlyTargets,
+  updateMonthlyTarget,
+  deleteMonthlyTarget,
+  getMonthlyRevenue,
+  getTollBoothPerformance,
+  getTargetAchievement
 };

@@ -18,8 +18,16 @@ const verifyToken = (req, res, next) => {
   try {
     console.log('Attempting to verify token...');
     const decoded = jwt.verify(token, process.env.JWT_SECRET);
-    console.log('Token verified successfully for admin:', decoded.id);
-    req.adminId = decoded.id;
+    console.log('Token verified successfully:', decoded);
+    
+    // Store the decoded token info in the request object
+    req.user = decoded;
+    
+    // If it's an admin route, verify admin ID
+    if (req.path.startsWith('/admin')) {
+      req.adminId = decoded.id;
+    }
+    
     next();
   } catch (err) {
     console.error('Token verification failed:', err.message);

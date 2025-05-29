@@ -3,6 +3,8 @@ const cors = require('cors');
 const dotenv = require('dotenv');
 const adminRoutes = require('./routes/adminRoutes');
 const tolloperatorRoutes = require('./routes/tollOperatorRoutes');
+const emergencyRoutes = require('./routes/emergencyRoutes');
+const userRoutes = require('./routes/userRoutes');
 
 dotenv.config();
 
@@ -27,6 +29,8 @@ app.use(express.urlencoded({ extended: true }));
 // Routes
 app.use('/admin', adminRoutes);
 app.use('/tolloperator', tolloperatorRoutes);
+app.use('/emergency', emergencyRoutes);
+app.use('/users', userRoutes);
 
 // Error handling middleware
 app.use((err, req, res, next) => {
