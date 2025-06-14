@@ -33,6 +33,42 @@ const getUserByNIC = async (nic) => {
     }
 };
 
+const updateUserPoints = async (nic, topupAmount) => {
+    try {
+        console.log('Updating points for user with NIC:', nic, 'Amount:', topupAmount);
+        
+        // First, get the current user data
+        const user = await getUserByNIC(nic);
+        if (!user) {
+            throw new Error('User not found');
+        }
+
+        const currentPoints = parseFloat(user.points) || 0;
+        const newPoints = currentPoints + parseFloat(topupAmount);
+
+        // Update the user points
+        const updateQuery = `
+            UPDATE users 
+            SET points = ?, updated_at = NOW() 
+            WHERE nic = ?
+        `;
+        
+        const [result] = await db.execute(updateQuery, [newPoints, nic]);
+        console.log('Points update result:', result);
+
+        if (result.affectedRows === 0) {
+            throw new Error('Failed to update user points');
+        }
+
+        // Return the updated user data
+        return await getUserByNIC(nic);
+    } catch (error) {
+        console.error('Error in updateUserPoints:', error);
+        throw error;
+    }
+};
+
 module.exports = {
-    getUserByNIC
+    getUserByNIC,
+    updateUserPoints
 }; 

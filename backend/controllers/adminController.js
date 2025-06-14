@@ -578,7 +578,7 @@ const getMonthlyRevenue = async (req, res) => {
       SELECT 
         DATE_FORMAT(date, '%Y-%m') as month,
         SUM(profit_amount) as revenue
-      FROM dailyprofits
+      FROM daily_profits
       WHERE date >= DATE_SUB(CURDATE(), INTERVAL 12 MONTH)
       GROUP BY month
       ORDER BY month ASC
@@ -604,7 +604,7 @@ const getTollBoothPerformance = async (req, res) => {
         tb.location_name,
         COALESCE(SUM(dp.profit_amount), 0) as revenue
       FROM tollbooths tb
-      LEFT JOIN dailyprofits dp ON tb.id = dp.toll_booth_id
+      LEFT JOIN daily_profits dp ON tb.id = dp.toll_booth_id
       WHERE dp.date >= DATE_SUB(CURDATE(), INTERVAL 30 DAY)
       GROUP BY tb.id, tb.location_name
       ORDER BY revenue DESC
@@ -632,7 +632,7 @@ const getTargetAchievement = async (req, res) => {
         COALESCE(SUM(dp.profit_amount), 0) as actual
       FROM monthlytargets mt
       JOIN tollbooths tb ON mt.toll_booth_id = tb.id
-      LEFT JOIN dailyprofits dp ON tb.id = dp.toll_booth_id
+      LEFT JOIN daily_profits dp ON tb.id = dp.toll_booth_id
         AND MONTH(dp.date) = mt.month
         AND YEAR(dp.date) = mt.year
       WHERE mt.month = ? AND mt.year = ?

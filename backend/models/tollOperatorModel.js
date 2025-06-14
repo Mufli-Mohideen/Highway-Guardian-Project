@@ -37,14 +37,14 @@ const getTollOperatorDetailsById = async (userId) => {
           mt.target_amount as monthly_target,
           (
             SELECT COALESCE(SUM(dp.profit_amount), 0)
-            FROM dailyprofits dp
+            FROM daily_profits dp
             WHERE dp.toll_booth_id = t.toll_booth_id
             AND YEAR(dp.date) = YEAR(CURDATE())
             AND MONTH(dp.date) = MONTH(CURDATE())
           ) as monthly_profit
         FROM tolloperators t
         LEFT JOIN tollbooths b ON t.toll_booth_id = b.id
-        LEFT JOIN dailyprofits d ON d.toll_booth_id = t.toll_booth_id 
+        LEFT JOIN daily_profits d ON d.toll_booth_id = t.toll_booth_id 
           AND DATE(d.date) = CURDATE()
         LEFT JOIN monthlytargets mt ON mt.toll_booth_id = t.toll_booth_id
           AND mt.month = MONTH(CURDATE())
@@ -69,13 +69,13 @@ const getProfitData = async (userId) => {
         mt.target_amount as monthly_target,
         (
           SELECT COALESCE(SUM(dp.profit_amount), 0)
-          FROM dailyprofits dp
+          FROM daily_profits dp
           WHERE dp.toll_booth_id = t.toll_booth_id
           AND YEAR(dp.date) = YEAR(CURDATE())
           AND MONTH(dp.date) = MONTH(CURDATE())
         ) as monthly_profit
       FROM tolloperators t
-      LEFT JOIN dailyprofits d ON d.toll_booth_id = t.toll_booth_id 
+      LEFT JOIN daily_profits d ON d.toll_booth_id = t.toll_booth_id 
         AND DATE(d.date) = CURDATE()
       LEFT JOIN monthlytargets mt ON mt.toll_booth_id = t.toll_booth_id
         AND mt.month = MONTH(CURDATE())
@@ -103,13 +103,13 @@ const getDetailedProfitReport = async (userId) => {
         mt.target_amount as monthly_target,
         (
           SELECT COUNT(*)
-          FROM dailyprofits dp
+          FROM daily_profits dp
           WHERE dp.toll_booth_id = t.toll_booth_id
           AND DATE(dp.date) = DATE(d.date)
         ) as total_transactions
       FROM tolloperators t
       JOIN tollbooths b ON t.toll_booth_id = b.id
-      LEFT JOIN dailyprofits d ON d.toll_booth_id = t.toll_booth_id 
+      LEFT JOIN daily_profits d ON d.toll_booth_id = t.toll_booth_id 
         AND d.date >= DATE_SUB(CURDATE(), INTERVAL 30 DAY)
       LEFT JOIN monthlytargets mt ON mt.toll_booth_id = t.toll_booth_id
         AND mt.month = MONTH(d.date)

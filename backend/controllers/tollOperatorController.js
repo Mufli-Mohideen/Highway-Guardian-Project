@@ -332,28 +332,22 @@ const getTodaysProfit = async (req, res) => {
     const tollBoothId = operator[0].toll_booth_id;
     console.log('4. Found toll_booth_id:', tollBoothId);
 
-    // Get today's profit with explicit date format
-    const query = `
-      SELECT profit_amount
-      FROM dailyprofits 
-      WHERE toll_booth_id = ? 
-      AND date = '2025-05-29'
-      LIMIT 1
-    `;
-    console.log('5. Executing query:', query, 'with tollBoothId:', tollBoothId);
-    
-    const [result] = await db.execute(query, [tollBoothId]);
-    console.log('6. Profit query result:', result);
-    
+    // Calculate today's revenue  
+    const [revenueResult] = await db.execute(`
+      SELECT COALESCE(SUM(profit_amount), 0) as today_revenue
+      FROM daily_profits
+      WHERE toll_booth_id = ? AND DATE(date) = CURDATE()
+    `, [tollBoothId]);
+
     // Check if we got any results
-    if (!result || result.length === 0) {
+    if (!revenueResult || revenueResult.length === 0) {
       console.log('7. No profit record found for today');
       return res.status(200).json({ today_profit: 0 });
     }
     
-    console.log('8. Sending profit amount:', result[0].profit_amount);
+    console.log('8. Sending profit amount:', revenueResult[0].today_revenue);
     res.status(200).json({
-      today_profit: parseFloat(result[0].profit_amount) || 0
+      today_profit: parseFloat(revenueResult[0].today_revenue) || 0
     });
   } catch (error) {
     console.error('Detailed error in getTodaysProfit:', {

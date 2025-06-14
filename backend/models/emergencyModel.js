@@ -107,9 +107,53 @@ const getRequiredServices = async (emergencyId) => {
     }
 };
 
+const getTodaysEmergencies = async () => {
+    try {
+        const query = `
+            SELECT 
+                emergency_id,
+                user_id,
+                type,
+                time,
+                severity,
+                status,
+                lon,
+                lat,
+                police_required,
+                ambulance_required,
+                repair_required,
+                fire_service_required,
+                CASE 
+                    WHEN severity = 1 THEN 'Low'
+                    WHEN severity = 2 THEN 'Medium'
+                    WHEN severity = 3 THEN 'High'
+                END as severity_level
+            FROM emergency
+            WHERE DATE(time) = CURDATE()
+            ORDER BY 
+                CASE status
+                    WHEN 'unattended' THEN 1
+                    WHEN 'ontheway' THEN 2
+                    WHEN 'attended' THEN 3
+                    ELSE 4
+                END,
+                severity DESC,
+                time DESC`;
+        
+        console.log('Executing todays emergencies query'); // Debug log
+        const [rows] = await db.execute(query);
+        console.log('Query result:', rows); // Debug log
+        return rows;
+    } catch (error) {
+        console.error('Error in getTodaysEmergencies:', error);
+        throw error;
+    }
+};
+
 module.exports = {
     getActiveEmergencies,
     updateEmergencyStatus,
     createEmergency,
-    getRequiredServices
+    getRequiredServices,
+    getTodaysEmergencies
 }; 
